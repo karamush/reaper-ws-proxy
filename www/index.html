@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>REAPER MENU :)</title>
+  <style>
+    :root{
+      --bg: #000000;
+      --accent: #FFCC00;
+      --muted: #996633;
+      --glass: rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,var(--bg), #02101a);
+      color:var(--muted);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Full-page vertical layout */
+    nav[role="navigation"]{
+      height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:2rem;
+    }
+
+    ul.menu{
+      list-style:none;
+      margin:0;
+      padding:0;
+      width:min(520px,95%);
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+      align-items:stretch;
+    }
+
+    .menu a{
+      display:block;
+      text-decoration:none;
+      padding: clamp(1rem, 2.5vw, 1.6rem) clamp(1.25rem, 4vw, 2rem);
+      border-radius:14px;
+      font-weight:700;
+      font-size: clamp(1.25rem, 3.8vw, 1.6rem);
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color:var(--muted);
+      box-shadow: 0 6px 18px rgba(23, 2, 2, 0.6);
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease, color .12s;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .menu a:hover, .menu a:focus{
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(8,20,40,0.6);
+      color:var(--accent);
+      background: linear-gradient(90deg, rgba(96,165,250,0.06), rgba(125,211,252,0.02));
+      outline:none;
+    }
+
+    .menu a:focus-visible{outline:3px solid rgba(250, 96, 96, 0.14);outline-offset:4px}
+
+    .menu a[aria-current="true"]{
+      color: #3a1404;
+      background: linear-gradient(90deg,var(--accent), #FF0033);
+      transform:translateY(-3px) scale(1.01);
+    }
+
+    /* Small screens: full-height, tighter spacing */
+    @media (max-width:420px){
+      .menu{gap:.6rem}
+      .menu a{border-radius:12px}
+    }
+  </style>
+</head>
+<body>
+<nav role="navigation" aria-label="Основное меню">
+  <ul class="menu" role="menubar" id="menu">
+    <li role="none"><a role="menuitem" href="/chords">Chords</a></li>
+    <li role="none"><a role="menuitem" href="/lyrics">Lyrics</a></li>
+    <li role="none"><a role="menuitem" href="/slyrics">Scroll Lyrics</a></li>
+  </ul>
+</nav>
+
+<script>
+  (function(){
+    /*
+
+    const menu = document.getElementById('menu');
+    const items = Array.from(menu.querySelectorAll('a[role="menuitem"]'));
+    let idx = items.findIndex(a => a.getAttribute('aria-current') === 'true');
+    if(idx === -1) idx = 0;
+
+    function setActive(newIdx){
+      items.forEach((a,i)=> a.setAttribute('aria-current', i===newIdx ? 'true' : 'false'));
+      items[newIdx].focus();
+      idx = newIdx;
+    }
+
+    items.forEach((a,i)=>{
+      a.addEventListener('click', (e)=>{
+        e.preventDefault();
+        setActive(i);
+      });
+      a.addEventListener('keydown', (e)=>{
+        if(e.key === 'ArrowDown') { e.preventDefault(); setActive((i+1) % items.length); }
+        if(e.key === 'ArrowUp')   { e.preventDefault(); setActive((i-1+items.length) % items.length); }
+      });
+    });
+
+    menu.addEventListener('focusin', ()=> items[idx].focus());
+     */
+  })();
+</script>
+</body>
+</html>

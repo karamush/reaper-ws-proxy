@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+	<meta charset="utf-8" />
+	<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport" />
+	<title>REAPER Scrolling Chords — DrTux</title>
+	<style>
+		:root {
+			--bg: #0f0f12;
+			--fg: #eaeaea;
+			--accent: #ea8400
+		}
+
+		html,
+		body {
+			height: 100%;
+			margin: 0;
+			background: var(--bg);
+			color: var(--fg);
+			font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial
+		}
+
+		.app {
+			display: flex;
+			height: 100vh;
+			gap: 12px;
+			padding: 12px;
+			box-sizing: border-box
+		}
+
+		.left {
+			flex: 1;
+			overflow: auto;
+			padding: 12px;
+			background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(0, 0, 0, 0.03));
+			border-radius: 8px
+		}
+
+		h1,
+		h2 {
+			margin: 8px 0
+		}
+
+		.controls {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+			margin-bottom: 8px
+		}
+
+		button {
+			background: transparent;
+			border: 1px solid rgba(255, 255, 255, 0.06);
+			color: var(--fg);
+			padding: 6px 10px;
+			border-radius: 6px;
+			cursor: pointer
+		}
+
+		button:active {
+			transform: translateY(1px)
+		}
+
+		.right {
+			width: 420px;
+			display: flex;
+			flex-direction: column;
+			gap: 8px
+		}
+
+		.canvas-wrap {
+			flex: 1;
+			background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.04));
+			border-radius: 8px;
+			position: relative;
+			overflow: hidden
+		}
+
+		canvas {
+			display: block;
+			width: 100%;
+			height: 100%
+		}
+
+		.legend {
+			font-size: 0.88em;
+			color: rgba(255, 255, 255, 0.85);
+			display: flex;
+			justify-content: space-between;
+			padding: 2px
+		}
+
+		.hint {
+			font-size: 0.85em;
+			color: rgba(255, 255, 255, 0.6)
+		}
+
+		.lyrics-list {
+			margin-top: 8px
+		}
+
+		.lyrics-item {
+			padding: 8px;
+			border-radius: 6px;
+			margin: 4px 0;
+			background: transparent
+		}
+
+		.lyrics-item.current {
+			background: rgba(234, 132, 0, 0.06);
+			transform: scale(1.02)
+		}
+
+		#legendRegion {
+			font-weight: bolder;
+		}
+
+		/* mobile overlay controls (visible on small screens) */
+		.mobile-controls {
+			position: absolute;
+			right: 10px;
+			top: 10px;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			z-index: 220
+		}
+
+		.mobile-controls button {
+			width: 44px;
+			height: 36px;
+			border-radius: 8px;
+			background: rgba(0, 0, 0, 0.45);
+			border: 1px solid rgba(255, 255, 255, 0.06);
+			font-weight: 600
+		}
+
+		@media (max-width: 640px) {
+			.left {
+				display: none
+			}
+
+			.right {
+				width: 100%;
+				height: 100vh
+			}
+
+			.app {
+				padding: 6px
+			}
+
+			.mobile-controls {
+				display: flex
+			}
+		}
+
+		@media (min-width: 641px) {
+			.mobile-controls {
+				display: none
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<div class="app">
+		<div class="left">
+			<h2>Chords and hints web interface</h2>
+			<div class="controls">
+				<button id="btnRecenter">Recenter</button>
+				<button id="btnZoomIn">Zoom +</button>
+				<button id="btnZoomOut">Zoom -</button>
+				<div style="flex:1"></div>
+				<div class="hint">Wheel — zoom, drag — pan, pinch — zoom, flick — inertial pan</div>
+			</div>
+			<div id="actions_div">
+				<h3>Run action:</h3>
+				<ul>
+					<li style="cursor: pointer;" onclick="wwr_req('_RS5ec878043912b7bbf1da0cdfa5a8d5240e8c9033')">
+						DrTux_Convert Chords track items notes for scrolling web browser interface</li>
+				</ul>
+			</div>
+			<div class="lyrics-list" id="lyricsList"></div>
+		</div>
+
+		<div class="right">
+			<div class="canvas-wrap" id="canvasWrap">
+				<canvas id="timelineCanvas"></canvas>
+				<div class="mobile-controls" id="mobileControls">
+					<button id="mZoomIn">+</button>
+					<button id="mZoomOut">−</button>
+					<button id="mFit">Fit</button>
+				</div>
+			</div>
+			<div class="legend">
+				<div id="legendRegion">Region: —</div>
+				<div id="legendCenter">Time: — s</div>
+				<div id="legendBPM" title="BPM">BPM: —</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="main.js"></script>
+	<script>
+		const EXT_NAME = 'DRTUX';
+		const wsURL = "ws://" + window.location.host + "/ws";
+
+		wwr_start();
+		window.first_run === true;
+
+		function requestExtData() {
+			wwr_req(`GET/EXTSTATE/${EXT_NAME}/chords_json;REGION;MARKER;TRANSPORT;`);
+		}
+
+		const wsClient = createWebSocket(wsURL, function (data) {
+			wwr_onreply(data);
+		});
+
+		// wwr_req_recur(`GET/EXTSTATE/${EXT_NAME}/need_refresh;TRANSPORT`, 60);
+		requestExtData();
+
+
+		/*****/
+
+		function createWebSocket(url, onMessageCallback) {
+			let ws;
+			let reconnectDelay = 1000;     // начальный интервал переподключения (1 секунда)
+			const maxDelay = 30000;        // максимальный интервал (30 сек)
+			let shouldReconnect = true;
+
+			function connect() {
+				ws = new WebSocket(url);
+
+				ws.onopen = function (ev) {
+					console.log("WS connected");
+					reconnectDelay = 1000;
+				};
+
+				ws.onmessage = function (msg) {
+					onMessageCallback(msg.data);
+				};
+
+				ws.onerror = function (err) {
+					console.error("WS error:", err);
+					ws.close();
+				};
+
+				ws.onclose = function (ev) {
+					console.warn("WS closed, will try reconnect. Code:", ev.code, "Reason:", ev.reason);
+					if (!shouldReconnect) {
+						return;
+					}
+					setTimeout(function () {
+						// reconnectDelay = Math.min(maxDelay, reconnectDelay * 1.5);
+						connect();
+					}, reconnectDelay);
+				};
+			}
+
+			connect();
+
+			return {
+				send: function (data) {
+					if (ws && ws.readyState === WebSocket.OPEN) {
+						ws.send(data);
+					} else {
+						console.warn("WS not open, cannot send:", data);
+					}
+				},
+				close: function () {
+					shouldReconnect = false;
+					if (ws) {
+						ws.close();
+					}
+				}
+			};
+		}
+
+		var networkLatencyCompensation = 0.201100; // TODO: сделать параметр изменяемым (а пока хотя бы через консоль :D)
+
+		const baseTitle = 'REAPER Scrolling Chords — DrTux';
+		const canvas = document.getElementById('timelineCanvas');
+		const canvasWrap = document.getElementById('canvasWrap');
+		const legendRegion = document.getElementById('legendRegion');
+		const legendCenter = document.getElementById('legendCenter');
+		const legendBPM = document.getElementById('legendBPM');
+		const actionsDiv = document.getElementById('actions_div');
+		const lyricsList = document.getElementById('lyricsList');
+		const mobileControls = document.getElementById('mobileControls');
+		const mZoomIn = document.getElementById('mZoomIn');
+		const mZoomOut = document.getElementById('mZoomOut');
+		const mFit = document.getElementById('mFit');
+
+		let dpr = Math.max(1, window.devicePixelRatio || 1);
+		const ctx = canvas.getContext('2d');
+
+		function resizeCanvas() {
+			dpr = Math.max(1, window.devicePixelRatio || 1);
+			const rect = canvas.getBoundingClientRect();
+			const w = Math.max(1, Math.floor(rect.width * dpr));
+			const h = Math.max(1, Math.floor(rect.height * dpr));
+			if (canvas.width !== w || canvas.height !== h) {
+				canvas.width = w;
+				canvas.height = h;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+		}
+
+		window.addEventListener('resize', resizeCanvas);
+		window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 50));
+
+		// data
+		let json = { entry: [] };
+		let regions = [];
+		let currentRegion = null;
+		let markers = [];
+		let entries = [];
+		let regionsGrabbing = false;
+		let markersGrabbing = false;
+		let __last_play_status = -1;
+		let currentPlayTextStatus = '⏱';
+
+
+		// view and persistence
+		let scale = localStorage.getItem('tux_timeline_scale') ? parseFloat(localStorage.getItem('tux_timeline_scale')) : 80; // px/s
+		const minScale = 4;
+		const maxScale = 2000;
+		let currentTime = 0;
+		let displayedTime = 0;
+		let manualOffset = 0;
+		let isDragging = false;
+		let lastDragY = 0;
+		let centerY = 0;
+		let rafId = null;
+		let currentIndex = -1;
+		let panVelocity = 0;
+		let recentMoves = [];
+		const MAX_RECENT = 8;
+		const timeSmoothing = 0.14;
+		const itemPadding = 8;
+		const minItemHeight = 8;
+
+		function saveScale() {
+			localStorage.setItem('tux_timeline_scale', scale.toString());
+		}
+
+		function buildEntriesFromJson() {
+			entries = [];
+			if (!json.entry) return;
+			for (const line of json.entry) {
+				const s = parseFloat(line.pos_start);
+				const e = parseFloat(line.pos_end);
+				const dur = Math.max(0, e - s);
+				entries.push({ start: s, end: e, dur: dur, text: (line.text || ''), timesig: line.timesig_like, bpm: line.bpm, beats: line.beats });
+			}
+			entries.sort((a, b) => a.start - b.start);
+			buildHtmlList();
+			autofitScaleIfNeeded();
+			displayedTime = currentTime;
+		}
+
+		function buildHtmlList() {
+			lyricsList.innerHTML = '';
+			for (let i = 0; i < entries.length; i++) {
+				const it = entries[i];
+				const div = document.createElement('div');
+				div.className = 'lyrics-item';
+				div.dataset.index = i;
+				div.innerHTML = `<strong>${formatTime(it.start)}</strong> — ${escapeHtml(it.text)} <span style="float:right;opacity:0.8">${it.dur.toFixed(2)}s</span>`;
+				div.addEventListener('click', () => {
+					manualOffset = ((it.start + it.end) / 2) - currentTime;
+				});
+				lyricsList.appendChild(div);
+			}
+		}
+
+		function escapeHtml(s) {
+			return s;
+			// return (s || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+		}
+
+		function formatTime(totalSeconds) {
+			const hours = Math.floor(totalSeconds / 3600);
+			const minutes = Math.floor((totalSeconds % 3600) / 60);
+			const seconds = parseInt(totalSeconds) % 60;
+
+			const formattedHours = String(hours).padStart(2, '0');
+			const formattedMinutes = String(minutes).padStart(2, '0');
+			const formattedSeconds = String(seconds).padStart(2, '0');
+
+			if (hours > 0)
+				return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+
+			return `${formattedMinutes}:${formattedSeconds}`;
+		}
+
+		function autofitScaleIfNeeded() {
+			if (!entries.length) return; // detect if blocks too small on screen
+			const rect = canvas.getBoundingClientRect();
+			if (rect.height < 1) return;
+			const medianDur = (() => {
+				const d = entries.map(e => e.dur).filter(x => x > 0);
+				if (!d.length) return 0;
+				d.sort((a, b) => a - b);
+				return d[Math.floor(d.length / 2)];
+			})();
+			if (medianDur <= 0) return;
+			const desiredPx = Math.max(28, Math.min(60, rect.height * 0.06));
+			const suggested = desiredPx / medianDur;
+			if (!localStorage.getItem('tux_timeline_scale') && suggested > scale * 1.2) {
+				scale = Math.max(minScale, Math.min(maxScale, suggested));
+				saveScale();
+			}
+		}
+
+		function fitTrackToView() {
+			if (!entries.length) return;
+			const rect = canvas.getBoundingClientRect();
+			const totalDur = entries[entries.length - 1].end - entries[0].start;
+			if (totalDur <= 0) return;
+			const target = (rect.height * 0.9) / totalDur;
+			scale = Math.max(minScale, Math.min(maxScale, target));
+			saveScale();
+		}
+
+		function measureWrappedLines(ctx, text, maxWidth) {
+			const words = (text || '').split(/\s+/);
+			let line = '';
+			let lines = 0;
+			for (let n = 0; n < words.length; n++) {
+				const testLine = line ? (line + ' ' + words[n]) : words[n];
+				if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+					lines++;
+					line = words[n];
+				} else line = testLine;
+			}
+			if (line) lines++;
+			return Math.max(1, lines);
+		}
+
+		function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+			const paragraphs = (text || '').split(/\r\n|\n|\r|<br>/);
+			let curY = y;
+
+			for (let p = 0; p < paragraphs.length; p++) {
+				const para = paragraphs[p];
+
+				if (para === '') {
+					curY += lineHeight;
+					continue;
+				}
+
+				const words = para.split(/\s+/);
+				let line = '';
+
+				for (let n = 0; n < words.length; n++) {
+					let word = words[n];
+					const testLine = line ? (line + ' ' + word) : word;
+					const metrics = ctx.measureText(testLine);
+
+					if (metrics.width > maxWidth) {
+						if (line) {
+							ctx.fillText(line, x, curY);
+							curY += lineHeight;
+							line = word;
+						} else {
+							let chunk = '';
+							for (let i = 0; i < word.length; i++) {
+								const testChunk = chunk + word[i];
+								if (ctx.measureText(testChunk).width > maxWidth) {
+									if (chunk) {
+										ctx.fillText(chunk, x, curY);
+										curY += lineHeight;
+									}
+									chunk = word[i];
+								} else {
+									chunk = testChunk;
+								}
+							}
+							line = chunk;
+						}
+					} else {
+						line = testLine;
+					}
+				}
+
+				if (line) {
+					ctx.fillText(line, x, curY);
+					curY += lineHeight;
+				}
+			}
+
+			return curY;
+		}
+
+		function draw() {
+			resizeCanvas();
+			const w = canvas.width / dpr;
+			const h = canvas.height / dpr;
+			centerY = h / 2;
+			ctx.clearRect(0, 0, w, h);
+			displayedTime += (currentTime - displayedTime) * timeSmoothing;
+			if (Math.abs(panVelocity) > 1e-4 && !isDragging) {
+				const dt = 1 / 60;
+				manualOffset += panVelocity * dt;
+				panVelocity *= Math.pow(0.92, dt * 60);
+				if (Math.abs(panVelocity) < 1e-4) panVelocity = 0;
+			}
+
+			// center line
+			ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(0, centerY + 0.5);
+			ctx.lineTo(w, centerY + 0.5);
+			ctx.stroke();
+
+			const laneX = 12;
+			const laneW = Math.max(120, w - 160);
+			const badgeW = 50;
+
+			let newCurrentIndex = -1;
+			for (let i = 0; i < entries.length; i++) {
+				const it = entries[i];
+				const adjStart = it.start;
+				const midTime = (it.start + it.end) / 2;
+				const yCenter = centerY + (midTime - (displayedTime + manualOffset)) * scale;
+				const itemH = Math.max(minItemHeight, it.dur * scale);
+				const yTop = yCenter - itemH / 2;
+				const yBottom = yTop + itemH;
+				if (yBottom < -40 || yTop > h + 40) continue;
+				ctx.save();
+				ctx.shadowColor = 'rgba(0,0,0,0.6)';
+				ctx.shadowBlur = 8;
+				ctx.fillStyle = 'rgba(255,255,255,0.04)';
+				roundRect(ctx, laneX, yTop, laneW, itemH, 8);
+				ctx.fill();
+				ctx.restore();
+				const inRange = (displayedTime >= adjStart && displayedTime <= it.end);
+				if (inRange) {
+					const dur = Math.max(0.0001, it.end - adjStart);
+					const pct = Math.max(0, Math.min(1, (displayedTime - adjStart) / dur));
+					const fillH = Math.max(1, itemH * pct);
+					const g = ctx.createLinearGradient(0, yTop, 0, yTop + fillH);
+					g.addColorStop(0, 'rgba(234,132,0,0.48)');
+					g.addColorStop(1, 'rgba(255,205,110,0.95)');
+					ctx.fillStyle = g;
+					roundRect(ctx, laneX, yTop, laneW, fillH, 8, { tl: 8, tr: 8, br: 0, bl: 0 });
+					ctx.fill();
+					newCurrentIndex = i;
+					ctx.save();
+					ctx.globalAlpha = 0.12;
+					ctx.fillStyle = 'rgba(234,132,0,1)';
+					roundRect(ctx, laneX - 2, yTop - 2, laneW + 4, itemH + 4, 10);
+					ctx.fill();
+					ctx.restore();
+				}
+				ctx.save();
+				roundRect(ctx, laneX, yTop, laneW, itemH, 8);
+				ctx.clip();
+				ctx.fillStyle = 'white';
+				ctx.globalAlpha = 1;
+				const fontSize = Math.max(24, Math.min(34, 14 + itemH * 0.15));
+				ctx.font = fontSize + 'px sans-serif';
+				const lineHeight = Math.round(fontSize * 1.15);
+				const maxTextWidth = laneW - itemPadding * 2 - badgeW; // - 8;
+				const lines = measureWrappedLines(ctx, it.text, maxTextWidth);
+				const textBlockHeight = Math.min(itemH - itemPadding * 2, lines * lineHeight);
+				const textStartY = yTop + itemPadding * 2 + minItemHeight + 10;
+				wrapText(ctx, it.text, laneX + itemPadding, textStartY, maxTextWidth, lineHeight);
+				ctx.restore();
+
+				// duration badge (top right aligned)
+				const badgeX = laneX + laneW - badgeW - 8;
+				const badgeY = yTop + 4;
+				ctx.fillStyle = 'rgba(0,0,0,0.45)';
+				roundRect(ctx, badgeX, badgeY, badgeW, 36, 6);
+				ctx.fill();
+				ctx.fillStyle = 'rgba(255,255,255,0.95)';
+				ctx.font = '12px monospace';
+				ctx.fillText(it.timesig, badgeX + 8, badgeY + 14);
+				ctx.fillText(it.dur.toFixed(2) + 's', badgeX + 8, badgeY + 30);
+			}
+			ctx.fillStyle = 'rgba(255,255,255,0.02)';
+			ctx.fillRect(0, centerY - 2, w, 4);
+			ctx.fillStyle = 'rgba(234,132,0,0.95)';
+			ctx.beginPath();
+			ctx.arc(10, centerY, 6, 0, Math.PI * 2);
+			ctx.fill();
+			legendRegion.textContent = currentPlayTextStatus + ' ' + (currentRegion?.name ?? 'No region');
+			legendCenter.textContent = `Time: ${formatTime(currentTime)}`;
+
+
+			if (newCurrentIndex !== currentIndex) {
+				if (newCurrentIndex - currentIndex > 1) { // Убираем класс активности у всех только при большом разрыве. При последовтельном переключении можно точечно :)
+					document.querySelectorAll('.lyrics-item').forEach(x => x.classList.remove('current'));
+				} else {
+					const el = lyricsList.children[currentIndex];
+					if (el) el.classList.remove('current');
+				}
+
+				if (newCurrentIndex !== -1) {
+					const el = lyricsList.children[newCurrentIndex];
+					if (el) el.classList.add('current');
+				}
+				currentIndex = newCurrentIndex;
+				const it = entries[currentIndex];
+				legendBPM.textContent = it?.bpm ?? '';
+
+
+				if (currentIndex !== -1) {
+					const el = lyricsList.children[currentIndex];
+					if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				}
+			}
+		}
+
+		function roundRect(ctx, x, y, w, h, r, cut) {
+			const c = cut || { tl: r, tr: r, br: r, bl: r };
+			ctx.beginPath();
+			ctx.moveTo(x + (c.tl || 0), y);
+			ctx.lineTo(x + w - (c.tr || 0), y);
+			if (c.tr) ctx.quadraticCurveTo(x + w, y, x + w, y + (c.tr));
+			ctx.lineTo(x + w, y + h - (c.br || 0));
+			if (c.br) ctx.quadraticCurveTo(x + w, y + h, x + w - (c.br), y + h);
+			ctx.lineTo(x + (c.bl || 0), y + h);
+			if (c.bl) ctx.quadraticCurveTo(x, y + h, x, y + h - (c.bl));
+			ctx.lineTo(x, y + (c.tl || 0));
+			if (c.tl) ctx.quadraticCurveTo(x, y, x + (c.tl), y);
+			ctx.closePath();
+		}
+
+		// interactions: wheel zoom
+		canvas.addEventListener('wheel', (e) => {
+			e.preventDefault();
+			const delta = Math.sign(e.deltaY);
+			const factor = delta < 0 ? 1.12 : 0.88;
+			const oldScale = scale;
+			scale = Math.max(minScale, Math.min(maxScale, scale * factor));
+			saveScale();
+			const rect = canvas.getBoundingClientRect();
+			const mouseY = e.clientY - rect.top;
+			const timeAtMouse = (mouseY - centerY) / oldScale + (displayedTime + manualOffset);
+			manualOffset = timeAtMouse - (mouseY - centerY) / scale - displayedTime;
+		}, { passive: false });
+
+		// mouse drag
+		canvas.addEventListener('mousedown', (e) => {
+			isDragging = true;
+			lastDragY = e.clientY;
+			recentMoves = [];
+			panVelocity = 0;
+			canvas.style.cursor = 'grabbing';
+		});
+		window.addEventListener('mousemove', (e) => {
+			if (!isDragging) return;
+			const dy = e.clientY - lastDragY;
+			const now = performance.now();
+			lastDragY = e.clientY;
+			recentMoves.push({ dy: dy, t: now });
+			if (recentMoves.length > MAX_RECENT) recentMoves.shift();
+			manualOffset += dy / scale;
+		});
+		window.addEventListener('mouseup', () => {
+			if (!isDragging) return;
+			isDragging = false;
+			canvas.style.cursor = 'default';
+			if (recentMoves.length >= 2) {
+				const first = recentMoves[0];
+				const last = recentMoves[recentMoves.length - 1];
+				const dt = (last.t - first.t) / 1000 || 0.001;
+				let totalDy = 0;
+				for (let i = 1; i < recentMoves.length; i++) totalDy += recentMoves[i].dy;
+				const velocityPxPerSec = totalDy / dt;
+				panVelocity = velocityPxPerSec / scale;
+				if (!isFinite(panVelocity)) panVelocity = 0;
+			}
+			recentMoves = [];
+		});
+		canvas.addEventListener('dblclick', () => {
+			manualOffset = 0;
+			panVelocity = 0;
+		});
+
+		// touch: pan + pinch-to-zoom
+		let pinch = { active: false, startDist: 0, startScale: scale, centerTime: 0 };
+		canvas.addEventListener('touchstart', (e) => {
+			if (e.touches.length === 1) {
+				isDragging = true;
+				lastDragY = e.touches[0].clientY;
+				recentMoves = [];
+				panVelocity = 0;
+			} else if (e.touches.length === 2) {
+				pinch.active = true;
+				pinch.startDist = distanceBetweenTouches(e.touches);
+				pinch.startScale = scale;
+				const rect = canvas.getBoundingClientRect();
+				const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+				pinch.centerTime = (midY - centerY) / scale + (displayedTime + manualOffset);
+			}
+		}, { passive: false });
+		canvas.addEventListener('touchmove', (e) => {
+			if (pinch.active && e.touches.length === 2) {
+				e.preventDefault();
+				const d = distanceBetweenTouches(e.touches);
+				const factor = d / pinch.startDist;
+				let newScale = Math.max(minScale, Math.min(maxScale, pinch.startScale * factor)); // keep center stable
+				const rect = canvas.getBoundingClientRect();
+				const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+				const timeAtMid = (midY - centerY) / scale + (displayedTime + manualOffset);
+				// compute manualOffset so pinch.centerTime stays under same screen pos
+				const newManual = pinch.centerTime - (midY - centerY) / newScale - displayedTime;
+				scale = newScale;
+				manualOffset = newManual;
+				saveScale();
+			} else if (!pinch.active && e.touches.length === 1 && isDragging) {
+				e.preventDefault();
+				const ty = e.touches[0].clientY;
+				const dy = ty - lastDragY;
+				const now = performance.now();
+				lastDragY = ty;
+				recentMoves.push({ dy: dy, t: now });
+				if (recentMoves.length > MAX_RECENT) recentMoves.shift();
+				manualOffset += dy / scale;
+			}
+		}, { passive: false });
+		canvas.addEventListener('touchend', (e) => {
+			if (pinch.active && e.touches.length < 2) {
+				pinch.active = false;
+			}
+			if (e.touches.length === 0 && isDragging) {
+				isDragging = false;
+				if (recentMoves.length >= 2) {
+					const first = recentMoves[0];
+					const last = recentMoves[recentMoves.length - 1];
+					const dt = (last.t - first.t) / 1000 || 0.001;
+					let totalDy = 0;
+					for (let i = 1; i < recentMoves.length; i++) totalDy += recentMoves[i].dy;
+					const velocityPxPerSec = totalDy / dt;
+					panVelocity = velocityPxPerSec / scale;
+					if (!isFinite(panVelocity)) panVelocity = 0;
+				}
+				recentMoves = [];
+			}
+		}, { passive: false });
+
+		function distanceBetweenTouches(t) {
+			const dx = t[0].clientX - t[1].clientX;
+			const dy = t[0].clientY - t[1].clientY;
+			return Math.sqrt(dx * dx + dy * dy);
+		}
+
+		// mobile control buttons
+		mZoomIn.addEventListener('click', () => {
+			scale = Math.min(maxScale, scale * 1.15);
+			saveScale();
+		});
+		mZoomOut.addEventListener('click', () => {
+			scale = Math.max(minScale, scale * 0.88);
+			saveScale();
+		});
+		mFit.addEventListener('click', () => {
+			fitTrackToView();
+		});
+
+		// buttons desktop
+		document.getElementById('btnZoomIn').addEventListener('click', () => {
+			scale = Math.min(maxScale, scale * 1.25);
+			saveScale();
+		});
+		document.getElementById('btnZoomOut').addEventListener('click', () => {
+			scale = Math.max(minScale, scale * 0.8);
+			saveScale();
+		});
+		document.getElementById('btnRecenter').addEventListener('click', () => {
+			manualOffset = 0;
+			panVelocity = 0;
+		});
+
+		function parseExtstate(tok) {
+			if (tok[1] === 'DRTUX' && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
+				requestExtData();
+				wwr_req('SET/EXTSTATE/DRTUX/need_refresh/false');
+				window.first_run = false;
+			}
+
+			if (tok[1] === 'DRTUX' && tok[2] === 'chords_json' && tok[3] !== '') {
+				const text = tok[3].replaceAll(/\\n/gmi, '\n').replaceAll(/\\\\/gmi, '\\');
+				try {
+					json = JSON.parse(text);
+					// console.info('RECEIVED JSON', json);
+				} catch (e) {
+					console.error('CHORDS JSON parse failed', e);
+					return;
+				}
+				buildEntriesFromJson();
+				// statusEl.innerHTML = '<strong>Done!</strong> — chords received!';
+				actionsDiv.style.display = 'none';
+				resizeCanvas();
+			}
+		}
+
+		function parseTransport(tok) {
+			// TRANSPORT \t playstate \t position_seconds \t isRepeatOn \t position_string \t position_string_beats
+			// playstate is 0 for stopped, 1 for playing, 2 for paused, 5 for recording, and 6 for record paused.
+			// isRepeatOn will be nonzero if repeat is enabled.
+			const playState = tok[1];
+			currentTime = parseFloat(tok[2]) + networkLatencyCompensation; // Получаем время и сразу компенсируем задержку :)
+
+			getCurrentRegion();
+			updatePlayStatus(playState);
+		}
+
+		function startRegionList() {
+			regions = [];
+			regionsGrabbing = true;
+		}
+
+		function parseMarker(tok) {
+			// MARKER \t name \t ID \t position [\t color]
+			const name = tok[1];
+
+			if (name.startsWith('!_')) return; // Skip action markers :)
+
+			const id = parseInt(tok[2]);
+			const pos = parseFloat(tok[3]);
+
+			markers.push({ name, id, pos });
+		}
+
+		function parseRegion(tok) {
+			// REGION \t name \t ID \t start-position \t end-position [\t color]
+			const name = tok[1];
+			const id = parseInt(tok[2]);
+			const start_pos = parseFloat(tok[3]);
+			const end_pos = parseFloat(tok[4]);
+
+			regions.push({ id, name, start_pos, end_pos });
+		}
+
+		function endRegionList() {
+			regionsGrabbing = false;
+			//console.info('REGIONS LIST', regions);
+		}
+
+		function getCurrentRegion() {
+			return currentRegion = regions.find(r => r.start_pos <= currentTime && r.end_pos >= currentTime) ?? null;
+		}
+
+		function startMarkersList() {
+			markers = [];
+			markersGrabbing = true;
+		}
+
+		function endMarkersList() {
+			markersGrabbing = false;
+			//console.info('MARKERS LIST', markers);
+		}
+
+		function getTextPlayStatus(playStatus) {
+			switch (parseInt(playStatus)) {
+				case 0: return '⏹';
+				case 1: return '▶';
+				case 2: return '⏸';
+				case 5: return '⏺';
+				case 6: return '⏺⏸';
+			}
+			return '';
+		}
+
+		function updatePlayStatus(playStatus) {
+			if (__last_play_status === playStatus) return;
+			__last_play_status = playStatus;
+
+			// Update title!
+			currentPlayTextStatus = getTextPlayStatus(playStatus);
+			window.document.title = currentPlayTextStatus + ' ' + baseTitle;
+		}
+
+		/* www reply */
+
+		function wwr_onreply(results) {
+			const ar = results.split('\n');
+			for (let x = 0; x < ar.length; x++) {
+				const tok = ar[x].split('\t');
+				if (!tok.length) continue;
+				const command = tok[0];
+
+				switch (command) {
+					case 'EXTSTATE': parseExtstate(tok); break;
+					case 'TRANSPORT': parseTransport(tok); break;
+					case 'REGION_LIST': startRegionList(); break;
+					case 'REGION_LIST_END': endRegionList(); break;
+					case 'MARKER_LIST': startMarkersList(); break;
+					case 'MARKER_LIST_END': endMarkersList(); break;
+					case 'REGION': parseRegion(tok); break;
+					case 'MARKER': parseMarker(tok); break;
+				}
+			}
+		}
+
+		// init
+		resizeCanvas();
+
+		(function loop() {
+			draw();
+			rafId = requestAnimationFrame(loop);
+		})();
+
+		window._reaperTimeline = { entries, json };
+	</script>
+</body>
+
+</html>

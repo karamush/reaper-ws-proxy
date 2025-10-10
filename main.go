@@ -12,6 +12,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,10 +25,11 @@ import (
 var (
 	reaperBaseURL = flag.String("reaper-url", "http://localhost:8088", "base URL of REAPER HTTP interface")
 	reaperRCName  = flag.String("reaper-rc-name", "", "Name for rc.reaper.fm/NAME_HERE")
-	pollInterval  = flag.Duration("poll-interval", 80*time.Millisecond, "interval between polls to REAPER")
 	pollKeys      = flag.String("poll-get-keys", "GET/EXTSTATE/DRTUX/need_refresh;TRANSPORT", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
+	pollInterval  = flag.Duration("poll-interval", 80*time.Millisecond, "interval between polls to REAPER")
 	listenAddr    = flag.String("addr", ":8090", "address to listen on")
 	wsPath        = flag.String("ws-path", "/ws", "websocket path")
+	wwwRootPath   = flag.String("www-root-path", "./www", "path to serve static files from")
 	healthPath    = flag.String("health-path", "/health", "health check HTTP path")
 )
 
@@ -56,6 +60,29 @@ func main() {
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		reqPath := r.URL.Path
+		var tryPaths []string
+
+		// 1. Точный путь, как есть
+		tryPaths = append(tryPaths, filepath.Join(*wwwRootPath, filepath.FromSlash(path.Clean(reqPath))))
+		// 2. Путь + .html (если в reqPath нет расширения)
+		if filepath.Ext(reqPath) == "" {
+			tryPaths = append(tryPaths, filepath.Join(*wwwRootPath, filepath.FromSlash(path.Clean(reqPath)))+".html")
+		}
+		// 3. Путь + /index.html
+		tryPaths = append(tryPaths, filepath.Join(*wwwRootPath, filepath.FromSlash(path.Clean(reqPath)), "index.html"))
+
+		for _, p := range tryPaths {
+			if !strings.HasPrefix(p, filepath.Clean(*wwwRootPath)+string(os.PathSeparator)) {
+				continue
+			}
+			info, err := os.Stat(p)
+			if err == nil && !info.IsDir() {
+				serveFile(w, r, p)
+				return
+			}
+		}
+
 		err := proxyHandler(w, r)
 		if err != nil {
 			log.Println("proxy error:", err)
@@ -104,6 +131,25 @@ func main() {
 	}
 
 	m.Close()
+}
+
+func serveFile(w http.ResponseWriter, r *http.Request, filePath string) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		http.Error(w, "file open error", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	http.ServeContent(w, r, filePath, getModTime(f), f)
+}
+
+func getModTime(f *os.File) (modtime time.Time) {
+	info, err := f.Stat()
+	if err != nil {
+		return time.Now()
+	}
+	return info.ModTime()
 }
 
 func publishReaperRC() {
