@@ -158,8 +158,6 @@ func publishReaperRC() {
 		return
 	}
 
-	// TODO: добавить поддержку rc.reaper.fm - добавлять именованный адрес с нужным IP и портом
-	// curl -H "User-Agent: reaper_csurf_www/0.1" rc.reaper.fm/_/chords/192.168.93.250/8090
 	ip, err := getLocalIP()
 	if err != nil {
 		log.Printf("Can't get local ip: " + err.Error())
@@ -289,9 +287,9 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 			if err != nil {
 				cancel()
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					// игнорируем ожидаемые случаи
 				} else {
 					log.Println("poll: request error:", err, "ctx.Err:", ctx.Err())
+					time.Sleep(time.Second)
 				}
 				continue
 			}
@@ -305,12 +303,10 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 
 			old := getLastState()
 			if old == nil || !equalBytes(old, data) {
-				// состояние изменилось
 				setLastState(data)
 
 				now := time.Now()
 				if now.Sub(lastBroadcastTime) >= minBroadcastInterval {
-					// делаем рассылку
 					err := m.Broadcast(data)
 					if err != nil {
 						log.Println("poll: broadcast error:", err)
