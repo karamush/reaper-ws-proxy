@@ -211,7 +211,7 @@
 			wwr_req(`GET/EXTSTATE/${EXT_NAME}/chords_json;REGION;MARKER;TRANSPORT;`);
 		}
 
-		wwr_req_recur_websocket(`GET/EXTSTATE/${EXT_NAME}/need_refresh;TRANSPORT`, 60);
+		wwr_req_recur(`GET/EXTSTATE/${EXT_NAME}/need_refresh;TRANSPORT`, 60);
 		requestExtData();
 
 		/*****/

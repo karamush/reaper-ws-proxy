@@ -49,6 +49,7 @@ ol, ul, dl {
 }
 
 #playstate {
+	display: none;
 	height: 30px;
 	width: 100%;
 	background: blue;
@@ -139,6 +140,7 @@ ul li:active {
 <script src="main.js"></script>
 <script>
 wwr_start();
+wwr_req("GET/EXTSTATE/XR_Lyrics/json;SET/EXTSTATE/XR_Lyrics/need_refresh/false");
 wwr_req_recur("GET/EXTSTATE/XR_Lyrics/need_refresh;TRANSPORT",10);
 
 var div = document.getElementById('text');
@@ -167,6 +169,7 @@ if ( searchParams.has('font') && searchParams.get('font') !== "" ) {
 
 
 document.addEventListener('click', function(e){
+	return;
   if(e.target.tagName=="P" && e.target.classList.contains('lyrics') ) {
    wwr_req("SET/POS/" + e.target.dataset.posStart )
 	e.target.classList.add("current");

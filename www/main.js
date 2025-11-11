@@ -78,10 +78,11 @@ function wwr_run_update()
     }
 }
 
+const wsMode = 'WebSocket' in window || 'MozWebSocket' in window;
 
 function wwr_start() { wwr_run_update(); }
 function wwr_req(name) { g_wwr_req_list += name + ";"; }
-function wwr_req_recur(name, interval) { g_wwr_req_recur.push([name,interval,0]); }
+function wwr_req_recur(name, interval) { if (wsMode) wwr_req_recur_websocket(name); else g_wwr_req_recur.push([name,interval,0]); }
 function wwr_req_recur_cancel(name) {
     var i;
     for (i=0; i < g_wwr_req_recur.length; ++i) {
@@ -159,6 +160,9 @@ function createWebSocket(url, onMessageCallback) {
             } else {
                 console.warn("WS not open, cannot send:", data);
             }
+        },
+        isReady: function () {
+            return ws.readyState === WebSocket.OPEN;
         },
         close: function () {
             shouldReconnect = false;
