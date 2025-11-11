@@ -204,78 +204,17 @@
 	<script src="main.js"></script>
 	<script>
 		const EXT_NAME = 'DRTUX';
-		const wsURL = "ws://" + window.location.host + "/ws";
 
 		wwr_start();
-		window.first_run === true;
 
 		function requestExtData() {
 			wwr_req(`GET/EXTSTATE/${EXT_NAME}/chords_json;REGION;MARKER;TRANSPORT;`);
 		}
 
-		const wsClient = createWebSocket(wsURL, function (data) {
-			wwr_onreply(data);
-		});
-
-		// wwr_req_recur(`GET/EXTSTATE/${EXT_NAME}/need_refresh;TRANSPORT`, 60);
+		wwr_req_recur_websocket(`GET/EXTSTATE/${EXT_NAME}/need_refresh;TRANSPORT`, 60);
 		requestExtData();
 
-
 		/*****/
-
-		function createWebSocket(url, onMessageCallback) {
-			let ws;
-			let reconnectDelay = 1000;     // начальный интервал переподключения (1 секунда)
-			const maxDelay = 30000;        // максимальный интервал (30 сек)
-			let shouldReconnect = true;
-
-			function connect() {
-				ws = new WebSocket(url);
-
-				ws.onopen = function (ev) {
-					console.log("WS connected");
-					reconnectDelay = 1000;
-				};
-
-				ws.onmessage = function (msg) {
-					onMessageCallback(msg.data);
-				};
-
-				ws.onerror = function (err) {
-					console.error("WS error:", err);
-					ws.close();
-				};
-
-				ws.onclose = function (ev) {
-					console.warn("WS closed, will try reconnect. Code:", ev.code, "Reason:", ev.reason);
-					if (!shouldReconnect) {
-						return;
-					}
-					setTimeout(function () {
-						// reconnectDelay = Math.min(maxDelay, reconnectDelay * 1.5);
-						connect();
-					}, reconnectDelay);
-				};
-			}
-
-			connect();
-
-			return {
-				send: function (data) {
-					if (ws && ws.readyState === WebSocket.OPEN) {
-						ws.send(data);
-					} else {
-						console.warn("WS not open, cannot send:", data);
-					}
-				},
-				close: function () {
-					shouldReconnect = false;
-					if (ws) {
-						ws.close();
-					}
-				}
-			};
-		}
 
 		var networkLatencyCompensation = 0.201100; // TODO: сделать параметр изменяемым (а пока хотя бы через консоль :D)
 
@@ -778,7 +717,7 @@
 			panVelocity = 0;
 		});
 
-		function parseExtstate(tok) {
+		function parseExtState(tok) {
 			if (tok[1] === EXT_NAME && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
 				requestExtData();
 				wwr_req('SET/EXTSTATE/DRTUX/need_refresh/false');
@@ -892,7 +831,7 @@
 				const command = tok[0];
 
 				switch (command) {
-					case 'EXTSTATE': parseExtstate(tok); break;
+					case 'EXTSTATE': parseExtState(tok); break;
 					case 'TRANSPORT': parseTransport(tok); break;
 					case 'REGION_LIST': startRegionList(); break;
 					case 'REGION_LIST_END': endRegionList(); break;
