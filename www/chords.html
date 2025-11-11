@@ -779,13 +779,13 @@
 		});
 
 		function parseExtstate(tok) {
-			if (tok[1] === 'DRTUX' && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
+			if (tok[1] === EXT_NAME && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
 				requestExtData();
 				wwr_req('SET/EXTSTATE/DRTUX/need_refresh/false');
 				window.first_run = false;
 			}
 
-			if (tok[1] === 'DRTUX' && tok[2] === 'chords_json' && tok[3] !== '') {
+			if (tok[1] === EXT_NAME && tok[2] === 'chords_json' && tok[3] !== '') {
 				const text = tok[3].replaceAll(/\\n/gmi, '\n').replaceAll(/\\\\/gmi, '\\');
 				try {
 					json = JSON.parse(text);
@@ -805,8 +805,12 @@
 			// TRANSPORT \t playstate \t position_seconds \t isRepeatOn \t position_string \t position_string_beats
 			// playstate is 0 for stopped, 1 for playing, 2 for paused, 5 for recording, and 6 for record paused.
 			// isRepeatOn will be nonzero if repeat is enabled.
-			const playState = tok[1];
-			currentTime = parseFloat(tok[2]) + networkLatencyCompensation; // Получаем время и сразу компенсируем задержку :)
+			const playState = parseInt(tok[1]);
+			// Получаем время и сразу компенсируем задержку, но только если идёт воспроизведение :)
+			currentTime = parseFloat(tok[2]);
+			if ([1, 5].includes(playState)) {
+				currentTime = currentTime + networkLatencyCompensation;
+			}
 
 			getCurrentRegion();
 			updatePlayStatus(playState);
