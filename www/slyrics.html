@@ -115,36 +115,16 @@ ul li:active {
 <body>
 
 <div id="vignette"></div>
-<div id="text">
-	<h1>REAPER Scrolling Lyrics Web Interface by <a href="https://www.extremraym.com">X-Raym</a></h1>
-	<h2>State</h2>
-	<p><strong>OFF</strong>: Run a companion script to initialize.</p>
-	<h2>Installation</h2>
-	<p>Set this page as REAPER web interface, with menu Options > Preferences > Control/Osc/Web.</p>
-	<h2>Start</h2>
-	<div class="container">
-		<ol>
-			<li>Connect to the web interface using web browser of device on your local network</li>
-			<li>Run one of the companion script, to push lyrics to the web interface from items notes on lyrics tracks.<!--, regions etc..--></li>
-		</ol>
-	</div>
-	<h2>Companion Scripts</h2>
-	<div class="container">
-		<ul>
-			<li onclick="wwr_req('_RS1638aa6e03b091c84f02171baab10fea1e59cfdf')"><span>Item Notes</span>: X-Raym_Convert first selected track items notes for scrolling web browser interface.lua</li>
-		</ul>
-	</div>
-</div>
+<div id="text"></div>
 <div id="playstate"></div>
 
 <script src="main.js"></script>
 <script>
 wwr_start();
-wwr_req("GET/EXTSTATE/XR_Lyrics/json;SET/EXTSTATE/XR_Lyrics/need_refresh/false");
-wwr_req_recur("GET/EXTSTATE/XR_Lyrics/need_refresh;TRANSPORT",10);
+// wwr_req("GET/EXTSTATE/TUX/json;SET/EXTSTATE/TUX/need_refresh/false");
+wwr_req_recur("GET/EXTSTATE/TUX/need_refresh;TRANSPORT",10);
 
 var div = document.getElementById('text');
-var initial_text = div.innerHTML;
 var playstate_elm = document.getElementById('playstate');
 var colors = ["#000000", "#00FF00", "#FFFF00", "#000000", "#000000", "#FF0000", "#FFFF00"] // playstate is 0 for stopped, 1 for playing, 2 for paused, 5 for recording, and 6 for record paused.
 var first_run = true;
@@ -167,38 +147,17 @@ if ( searchParams.has('font') && searchParams.get('font') !== "" ) {
 	div.style.fontFamily = searchParams.get('font')
 }
 
-
-document.addEventListener('click', function(e){
-	return;
-  if(e.target.tagName=="P" && e.target.classList.contains('lyrics') ) {
-   wwr_req("SET/POS/" + e.target.dataset.posStart )
-	e.target.classList.add("current");
-	e.target.scrollIntoView({
-		behavior: 'smooth',
-		block: 'center',
-		inline: 'center'
-	})
-  }
-})
-
-document.addEventListener('keydown', event => {
-  if (event.code === 'Space') {
-  	event.preventDefault()
-  	wwr_req("40044") // Transport: Play/stop
-  }
-})
-
 function wwr_onreply(results) {
 	var ar = results.split("\n");
 	var x;
 	for (x=0;x<ar.length;x++) {
 		var tok = ar[x].split("\t");
-		if (tok.length > 1 && tok[1] === "XR_Lyrics" && tok[2] === "need_refresh" && (tok[3] === "true" || first_run === true ) ) {
-			wwr_req("GET/EXTSTATE/XR_Lyrics/json;SET/EXTSTATE/XR_Lyrics/need_refresh/false");
+		if (tok.length > 1 && tok[1] === "TUX" && tok[2] === "need_refresh" && (tok[3] === "true" || first_run === true ) ) {
+			wwr_req("GET/EXTSTATE/TUX/json;SET/EXTSTATE/TUX/need_refresh/false");
 			first_run = false;
 		}
 
-		if (tok.length > 1 && tok[1] === "XR_Lyrics" && tok[2] === "json" && tok[3] !== "") {
+		if (tok.length > 1 && tok[1] === "TUX" && tok[2] === "json" && tok[3] !== "") {
 			var text = tok[3].replaceAll(/\\n/gmi, "\n").replaceAll(/\\\\/gmi, "\\");
 			json = JSON.parse( text );
 			var t = [];

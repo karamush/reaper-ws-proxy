@@ -203,7 +203,7 @@
 
 	<script src="main.js"></script>
 	<script>
-		const EXT_NAME = 'DRTUX';
+		const EXT_NAME = 'TUX';
 
 		wwr_start();
 
@@ -720,7 +720,7 @@
 		function parseExtState(tok) {
 			if (tok[1] === EXT_NAME && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
 				requestExtData();
-				wwr_req('SET/EXTSTATE/DRTUX/need_refresh/false');
+				wwr_req('SET/EXTSTATE/TUX/need_refresh/false');
 				window.first_run = false;
 			}
 
