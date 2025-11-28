@@ -1,0 +1,55 @@
+version: 2
+# local test with: goreleaser release --clean --snapshot
+
+project_name: ReaperProxy
+builds:
+  - id: default
+    binary: reaproxy
+    main: ./main.go
+    goos:
+      - linux
+      - darwin
+      - windows
+      - openbsd
+    goarch:
+      - "386"
+      - amd64
+      - arm
+      - arm64
+      - mips
+    ignore:
+      # https://github.com/golang/go/issues/70705
+      - goos: windows
+        goarch: arm
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - "-s -w"               # убрать debug-информацию
+    flags:
+      - -trimpath
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    wrap_in_directory: true
+    files:
+      # - src: "www/**/*"
+      - src: "www/*"
+      - src: "REAPER-SCRIPTS/**/*"
+
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  version_template: "{{ incpatch .Version }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
