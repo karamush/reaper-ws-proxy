@@ -24,6 +24,7 @@ import (
 )
 
 var (
+	showVersion   = flag.Bool("version", false, "Show version and exit")
 	reaperBaseURL = flag.String("reaper-url", "http://localhost:8088", "base URL of REAPER HTTP interface")
 	reaperRCName  = flag.String("reaper-rc-name", "ws", "Name for rc.reaper.fm/NAME_HERE")
 	pollKeys      = flag.String("poll-get-keys", "TRANSPORT;GET/EXTSTATE/TUX/text;GET/EXTSTATE/TUX/need_refresh", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
@@ -34,8 +35,26 @@ var (
 	healthPath    = flag.String("health-path", "/health", "health check HTTP path")
 )
 
+var (
+	commit  = "none"
+	version = "dev"
+	date    = "unknown"
+)
+
 func main() {
+	flag.Usage = func() {
+		appName := filepath.Base(os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "WebSocket proxy server for REAPER\n")
+		printVersion()
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", appName)
+		flag.PrintDefaults()
+	}
 	flag.Parse()
+
+	if showVersion != nil && *showVersion {
+		printVersion()
+		return
+	}
 
 	m := melody.New()
 
@@ -132,6 +151,10 @@ func main() {
 	}
 
 	m.Close()
+}
+
+func printVersion() {
+	fmt.Printf("Version: %s, commit: %s, built at: %s\n", version, commit, date)
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, filePath string) {
