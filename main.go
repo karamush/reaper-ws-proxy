@@ -124,7 +124,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:         *listenAddr,
-		Handler:      mux,
+		Handler:      permissionsPolicyMiddleware(mux),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -167,6 +167,13 @@ func main() {
 	}
 
 	m.Close()
+}
+
+func permissionsPolicyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Permissions-Policy", `screen-wake-lock=(self)`)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func printVersion(printCommit bool) {
