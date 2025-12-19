@@ -15,11 +15,13 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/grandcat/zeroconf"
 	"github.com/olahol/melody"
 )
 
@@ -27,6 +29,7 @@ var (
 	showVersion   = flag.Bool("version", false, "Show version and exit")
 	reaperBaseURL = flag.String("reaper-url", "http://localhost:8088", "base URL of REAPER HTTP interface")
 	reaperRCName  = flag.String("reaper-rc-name", "ws", "Name for rc.reaper.fm/NAME_HERE")
+	mDNSService   = flag.String("mdns-service", "REAPER", "Name for mDNS service")
 	pollKeys      = flag.String("poll-get-keys", "TRANSPORT;GET/EXTSTATE/TUX/text;GET/EXTSTATE/TUX/need_refresh", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
 	pollInterval  = flag.Duration("poll-interval", 80*time.Millisecond, "interval between polls to REAPER")
 	listenAddr    = flag.String("addr", ":8090", "address to listen on")
@@ -45,23 +48,24 @@ func main() {
 	flag.Usage = func() {
 		appName := filepath.Base(os.Args[0])
 		_, _ = fmt.Fprintf(os.Stderr, "WebSocket proxy server for REAPER\n")
-		printVersion()
+		printVersion(true)
 		_, _ = fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", appName)
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
 	if showVersion != nil && *showVersion {
-		printVersion()
+		printVersion(true)
 		return
 	}
+
+	printVersion(false)
 
 	m := melody.New()
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(*wsPath, func(w http.ResponseWriter, r *http.Request) {
-		// Проверка авторизации / Origin, токенов и т.д.
 		err := m.HandleRequest(w, r)
 		if err != nil {
 			log.Println("WS handshake error:", err)
@@ -137,10 +141,22 @@ func main() {
 		}
 	}()
 
+	// mDNS
+	mDNSServer, err := createMDNSServer()
+	if err != nil {
+		log.Printf("mDNS server error: " + err.Error())
+	}
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutdown signal received")
+
+	if mDNSServer != nil {
+		log.Println("Stopping mDNS server...")
+		mDNSServer.Shutdown()
+		log.Println("mDNS server stopped")
+	}
 
 	close(stopCh)
 
@@ -153,8 +169,13 @@ func main() {
 	m.Close()
 }
 
-func printVersion() {
-	fmt.Printf("Version: %s, commit: %s, built at: %s\n", version, commit, date)
+func printVersion(printCommit bool) {
+	if printCommit {
+		fmt.Printf("Version: %s, commit: %s, built at: %s\n", version, commit, date)
+		return
+	}
+
+	fmt.Printf("Version: %s, built at: %s\n", version, date)
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, filePath string) {
@@ -176,23 +197,47 @@ func getModTime(f *os.File) (modtime time.Time) {
 	return info.ModTime()
 }
 
+func createMDNSServer() (*zeroconf.Server, error) {
+	ip, port, _ := getLocalIPAndPort()
+	portInt, _ := strconv.Atoi(port)
+
+	txtInfo := []string{"Reaper Lyrics and Chords via reaper-ws-proxy (" + version + ")"}
+
+	log.Printf("Starting mDNS server. Addr: %s:%d, ServiceName: %s", ip, portInt, *mDNSService)
+
+	server, err := zeroconf.Register(*mDNSService, "_http._tcp", "local.", portInt, txtInfo, nil)
+	if err != nil {
+		return nil, err
+	}
+	return server, nil
+}
+
+func getLocalIPAndPort() (string, string, error) {
+	ip, err := getLocalIP()
+	if err != nil {
+		log.Printf("Can't get local ip: " + err.Error())
+		return "", "", err
+	}
+	_, port, _ := net.SplitHostPort(*listenAddr)
+
+	return ip, port, nil
+}
+
 func publishReaperRC() {
 	if *reaperRCName == "" {
 		log.Printf("No reaper-rc-name, SKIP!")
 		return
 	}
 
-	ip, err := getLocalIP()
+	ip, port, err := getLocalIPAndPort()
 	if err != nil {
-		log.Printf("Can't get local ip: " + err.Error())
+		log.Printf("ReaperRC: can't get local ip, SKIP!")
 		return
 	}
-
 	log.Printf("LOCAL IP: %s", ip)
 
 	client := &http.Client{}
 
-	_, port, _ := net.SplitHostPort(*listenAddr)
 	uri := fmt.Sprintf("_/%s/%s/%s", *reaperRCName, ip, port)
 	log.Printf("Sending %s to rc.reaper.fm", uri)
 	req, _ := http.NewRequest("GET", "https://rc.reaper.fm/"+uri, nil)
