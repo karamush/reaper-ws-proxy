@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -262,7 +261,7 @@ func publishReaperRC() {
 	}
 
 	defer resp.Body.Close()
-	respBody, _ := ioutil.ReadAll(resp.Body)
+	respBody, _ := io.ReadAll(resp.Body)
 
 	log.Printf("rc.reaper.fm response: %s", string(respBody))
 }
@@ -395,7 +394,7 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 				}
 				continue
 			}
-			data, err := ioutil.ReadAll(resp.Body)
+			data, err := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
 			if err != nil {
 				log.Println("poll: read error:", err)
