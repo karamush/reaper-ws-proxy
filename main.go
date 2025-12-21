@@ -75,7 +75,7 @@ func main() {
 	m.HandleConnect(func(s *melody.Session) {
 		log.Printf("WS connected: %s - %s", s.Request.RemoteAddr, s.Request.UserAgent())
 		if state := getLastState(); state != nil {
-			s.Write(state)
+			_ = s.Write(state)
 		}
 	})
 
@@ -117,7 +117,7 @@ func main() {
 
 	mux.HandleFunc(*healthPath, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	go publishReaperRC()
@@ -166,7 +166,7 @@ func main() {
 		log.Println("HTTP server Shutdown:", err)
 	}
 
-	m.Close()
+	_ = m.Close()
 }
 
 func permissionsPolicyMiddleware(next http.Handler) http.Handler {
@@ -396,7 +396,7 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 				continue
 			}
 			data, err := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if err != nil {
 				log.Println("poll: read error:", err)
 				continue
