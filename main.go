@@ -73,14 +73,14 @@ func main() {
 	})
 
 	m.HandleConnect(func(s *melody.Session) {
-		log.Println("WS connected: ", s.Request.RemoteAddr)
+		log.Printf("WS connected: %s - %s", s.Request.RemoteAddr, s.Request.UserAgent())
 		if state := getLastState(); state != nil {
 			s.Write(state)
 		}
 	})
 
 	m.HandleDisconnect(func(s *melody.Session) {
-		log.Println("WS disconnected: ", s.Request.RemoteAddr)
+		log.Printf("WS disconnected: %s - %s", s.Request.RemoteAddr, s.Request.UserAgent())
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
