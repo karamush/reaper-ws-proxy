@@ -344,13 +344,29 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 	var lastBroadcastTime time.Time
 	minBroadcastInterval := 10 * time.Millisecond
 
+	var cancelRequest context.CancelFunc
+	defer func() {
+		if cancelRequest != nil {
+			cancelRequest()
+		}
+	}()
+
 	for {
 		select {
 		case <-stopCh:
 			log.Println("pollAndBroadcast exiting")
+			if cancelRequest != nil {
+				cancelRequest()
+			}
 			return
 		case <-ticker.C:
+			if cancelRequest != nil { // Если предыдущий запрос ещё почему-то выполняется, прервём его
+				cancelRequest()
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			cancelRequest = cancel
+
 			url := *reaperBaseURL + "/_/" + *pollKeys
 			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 			if err != nil {
