@@ -25,10 +25,10 @@ import (
 )
 
 var (
-	showVersion   = flag.Bool("version", false, "Show version and exit")
+	showVersion   = flag.Bool("version", false, "show version and exit")
 	reaperBaseURL = flag.String("reaper-url", "http://localhost:8088", "base URL of REAPER HTTP interface")
-	reaperRCName  = flag.String("reaper-rc-name", "ws", "Name for rc.reaper.fm/NAME_HERE (disable if empty)")
-	mDNSService   = flag.String("mdns-service", "REAPER", "Name for mDNS service (disable mDNS if empty)")
+	reaperRCName  = flag.String("reaper-rc-name", "ws", "name for rc.reaper.fm/NAME_HERE (disable if empty)")
+	mDNSService   = flag.String("mdns-service", "REAPER", "name for mDNS service (disable mDNS if empty)")
 	pollKeys      = flag.String("poll-get-keys", "TRANSPORT;GET/EXTSTATE/TUX/text;GET/EXTSTATE/TUX/need_refresh", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
 	pollInterval  = flag.Duration("poll-interval", 80*time.Millisecond, "interval between polls to REAPER")
 	listenAddr    = flag.String("addr", ":8090", "address to listen on")
