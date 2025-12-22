@@ -42,9 +42,10 @@ archives:
           - zip
     wrap_in_directory: true
     files:
-      # - src: "www/**/*"
+      - src: "www/**/*"
       - src: "www/*"
       - src: "REAPER-SCRIPTS/**/*"
+      - src: "REAPER-SCRIPTS/*"
 
 checksum:
   name_template: "checksums.txt"
