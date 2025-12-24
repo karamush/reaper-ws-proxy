@@ -18,9 +18,7 @@
 
 
 EXT_NAME = "TUX"
-EXT_KEYS_TO_CLEAR = {"text", "next", "need_refresh", "json", "chords_json"}
-
-LYRICS_STR_NO_TEXT = "--XR-NO-TEXT--"
+EXT_KEYS_TO_CLEAR = {"need_refresh", "json", "chords_json"}
 
 function Msg(val)
     reaper.ShowConsoleMsg(tostring(val) .. "\n")
@@ -63,54 +61,6 @@ local function escape_json_str(s)
     s = s:gsub("\n", "<br>")
     s = s:gsub("\r", "")
     return s
-end
-
-function GetTrackItemAtPos(track, pos)
-    local count_track_items = reaper.GetTrackNumMediaItems(track)
-    local current_item
-    for i = 0, count_track_items - 1 do
-        local item = reaper.GetTrackMediaItem(track, i)
-        local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
-        if item_pos <= pos then -- if item is after cursor then ignore
-            local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
-            if item_pos + item_len > pos then -- if item end is after cursor, then item is under cusor
-                current_item = item
-                break
-            end
-        end
-    end
-    return current_item
-end
-
-function ProcessItemNotes(item, ext_key, text)
-    if not item then
-        reaper.SetExtState(EXT_NAME, ext_key, LYRICS_STR_NO_TEXT, false)
-        return nil
-    end
-    local item_notes = reaper.ULT_GetMediaItemNote(item):gsub("\r?\n", "<br>")
-    if item_notes ~= text then
-        text = item_notes == "" and LYRICS_STR_NO_TEXT or item_notes
-        reaper.SetExtState(EXT_NAME, ext_key, text, false)
-    end
-    return text
-end
-
--- Set ToolBar Button State
-function SetButtonState(set)
-    if not set then
-        set = 0
-    end
-    local is_new_value, filename, sec, cmd, mode, resolution, val = reaper.get_action_context()
-    local state = reaper.GetToggleCommandStateEx(sec, cmd)
-    reaper.SetToggleCommandState(sec, cmd, set) -- Set ON
-    reaper.RefreshToolbar2(sec, cmd)
-end
-
-function Exit()
-    for i, k in ipairs(EXT_KEYS_TO_CLEAR) do
-        reaper.SetExtState(EXT_NAME, k, "", false)
-    end
-    SetButtonState()
 end
 
 function MakeChords()
@@ -204,7 +154,13 @@ function MakeChords()
 end
 
 function MakeLyrics()
-    local count_track_items = reaper.CountTrackMediaItems(LyricsTrack)
+    local track = GetLyricsTrack()
+    if not track then
+        Msg("No Lyrics track! Skips!")
+        return false
+    end
+
+    local count_track_items = reaper.CountTrackMediaItems(track)
     if count_track_items == 0 then
         Msg("No items in Lyrics track! Skips!")
         return false
@@ -212,7 +168,7 @@ function MakeLyrics()
 
     local t = {}
     for i = 0, count_track_items - 1 do
-        local item = reaper.GetTrackMediaItem(LyricsTrack, i)
+        local item = reaper.GetTrackMediaItem(track, i)
         local retval, item_notes = reaper.GetSetMediaItemInfo_String(item, "P_NOTES", "", false)
         if retval and item_notes ~= "" then
             local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
@@ -239,34 +195,6 @@ function MakeLyrics()
     reaper.SetExtState(EXT_NAME, "need_refresh", "true", false)
 end
 
-function ProcessCurrentLyrics()
-    -- Get play or edit cursor
-    local cur_pos = reaper.GetPlayState() > 0 and reaper.GetPlayPosition() or reaper.GetCursorPosition()
-    local notes = nil
-
-    if reaper.ValidatePtr(LyricsTrack, "MediaTrack*") then
-        local item = GetTrackItemAtPos(LyricsTrack, cur_pos)
-        notes = ProcessItemNotes(item, "text", notes)
-    else
-        LyricsTrack = GetLyricsTrack()
-    end
-
-    reaper.defer(ProcessCurrentLyrics)
-end
-
 -- RUN
--- Сначала получаем LyricsTrack, т.к. используется он в двух функциях
-LyricsTrack = GetLyricsTrack()
-
 MakeChords()
-if LyricsTrack then
-    MakeLyrics()
-end
-
-if LyricsTrack then
-    SetButtonState(1)
-    ProcessCurrentLyrics()
-    reaper.atexit(Exit)
-else
-    reaper.MB('No tracks named "Lyrics".', "Error", 0)
-end
+MakeLyrics()

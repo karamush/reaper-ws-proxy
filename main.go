@@ -29,7 +29,7 @@ var (
 	reaperBaseURL = flag.String("reaper-url", "http://localhost:8088", "base URL of REAPER HTTP interface")
 	reaperRCName  = flag.String("reaper-rc-name", "ws", "name for rc.reaper.fm/NAME_HERE (disable if empty)")
 	mDNSService   = flag.String("mdns-service", "REAPER", "name for mDNS service (disable mDNS if empty)")
-	pollKeys      = flag.String("poll-get-keys", "TRANSPORT;GET/EXTSTATE/TUX/text;GET/EXTSTATE/TUX/need_refresh", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
+	pollKeys      = flag.String("poll-get-keys", "TRANSPORT;GET/EXTSTATE/TUX/need_refresh", "comma-separated keys/commands for poll from REAPER and push to WebSocket")
 	pollInterval  = flag.Duration("poll-interval", 80*time.Millisecond, "interval between polls to REAPER")
 	listenAddr    = flag.String("addr", ":8090", "address to listen on")
 	wsPath        = flag.String("ws-path", "/ws", "websocket path")

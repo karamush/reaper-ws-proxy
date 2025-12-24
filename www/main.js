@@ -93,6 +93,16 @@ function stopScreenLock() {
     wakeLock.release();
 }
 
+function upperBound(arr, x) {
+    let l = 0, r = arr.length;
+    while (l < r) {
+        const m = (l + r) >> 1;
+        if (arr[m] <= x) l = m + 1;
+        else r = m;
+    }
+    return l;
+}
+
 function initxmlhttp() {
     var xmlhttp = false;
     /*@cc_on @*/
