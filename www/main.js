@@ -1,5 +1,77 @@
 let wakeLock = null;
 
+const defaultNetworkLatencyCompensation = 0.2011;
+
+(function () {
+    if (!window.networkLatencyCompensation) {
+        window.networkLatencyCompensation = defaultNetworkLatencyCompensation;
+    }
+
+    function parseHashParams() {
+        var raw = location.hash.replace(/^#/, '');
+        if (!raw) return {};
+        if (raw[0] === '?' || raw[0] === '!') raw = raw.slice(1);
+        return raw.split('&').reduce(function (acc, pair) {
+            if (!pair) return acc;
+            var idx = pair.indexOf('=');
+            var key = idx >= 0 ? decodeURIComponent(pair.slice(0, idx)) : decodeURIComponent(pair);
+            var val = idx >= 0 ? decodeURIComponent(pair.slice(idx + 1)) : '';
+            acc[key] = val;
+            return acc;
+        }, {});
+    }
+
+    function buildHash(params) {
+        var parts = [];
+        for (var k in params) {
+            if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
+            var v = params[k];
+            if (v === undefined || v === null) continue;
+            parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));
+        }
+        return parts.join('&');
+    }
+
+    function applyLatencyFromHash() {
+        var params = parseHashParams();
+        if (params.latency !== undefined && params.latency !== '') {
+            var parsed = parseFloat(params.latency);
+            if (!isNaN(parsed)) {
+                console.info(`Changed networkLatencyCompensation! ${window.networkLatencyCompensation} -> ${parsed}`);
+                window.networkLatencyCompensation = parsed;
+            }
+        }
+    }
+
+    function ensureHashLatency() {
+        var raw = location.hash.replace(/^#/, '');
+        if (!raw) {
+            var params = { latency: String(window.networkLatencyCompensation) };
+            var newHash = buildHash(params);
+            history.replaceState(null, '', location.pathname + location.search + (newHash ? '#' + newHash : ''));
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            if (!location.hash || /^#\s*$/.test(location.hash)) ensureHashLatency();
+            else applyLatencyFromHash();
+        });
+    } else {
+        if (!location.hash || /^#\s*$/.test(location.hash)) ensureHashLatency();
+        else applyLatencyFromHash();
+    }
+
+    window.addEventListener('hashchange', applyLatencyFromHash);
+
+    window.setLatencyHash = function (value) {
+        var params = parseHashParams();
+        params.latency = String(value);
+        var newHash = buildHash(params);
+        history.replaceState(null, '', location.pathname + location.search + (newHash ? '#' + newHash : ''));
+    };
+})();
+
 async function startScreenLock() {
     if (!("wakeLock" in navigator)) {
         console.warn("Wake lock is not supported by this browser.")
