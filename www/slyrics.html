@@ -82,7 +82,7 @@ a {
 }
 
 .lyrics:hover {
-	cursor: pointer;
+	/*cursor: pointer;*/
 }
 
 .current {
@@ -130,6 +130,7 @@ var colors = ["#000000", "#00FF00", "#FFFF00", "#000000", "#000000", "#FF0000", 
 var first_run = true;
 var json = [];
 var paragraphs = [];
+var currentTransportInfo = [];
 
 var vignette_elm = document.getElementById('vignette')
 
@@ -175,38 +176,43 @@ function wwr_onreply(results) {
 
 			div.innerHTML = t.join("\n");
 			paragraphs = document.getElementsByTagName("p");
+
+			updateCurrentData();
 		}
 
 		if (tok.length > 1 && tok[0] === "TRANSPORT" ){ // TRANSPORT \t playstate \t position_seconds \t isRepeatOn \t position_string \t position_string_beats
-			playstate_elm.style.background= colors[tok[1]];
-
-			var time = parseFloat( tok[2] );
-
-			const playState = parseInt(tok[1]);
-			if ([1, 5].includes(playState) && window.networkLatencyCompensation) {
-				time = time + window.networkLatencyCompensation;
-			}
-
-			var i = 0;
-			if( json.entry !== undefined ) {
-				for( let p of paragraphs ) {
-					if (time >= parseFloat( p.getAttribute("data-pos-start") ) -0.000001 && time <= parseFloat( p.getAttribute("data-pos-end")) ) {
-						p.classList.add("current");
-						if( parseInt( tok[1] ) > 0 ) {
-							p.scrollIntoView({
-								behavior: 'instant',
-								block: 'center',
-								inline: 'center'
-							})
-						}
-					} else {
-						p.classList.remove("current");
-					}
-					i++;
-				}
-			}
+			currentTransportInfo = tok;
+			updateCurrentData();
 		}
 
+	}
+
+	function updateCurrentData() {
+		const playState = parseInt(currentTransportInfo[1]);
+
+		playstate_elm.style.background= colors[playState];
+
+		var currentTime = parseFloat(currentTransportInfo[2]);
+		if ([1, 5].includes(playState) && window.networkLatencyCompensation) {
+			currentTime = currentTime + window.networkLatencyCompensation;
+		}
+
+		var i = 0;
+		if( json.entry !== undefined ) {
+			for( let p of paragraphs ) {
+				if (currentTime >= parseFloat( p.getAttribute("data-pos-start") ) -0.000001 && currentTime <= parseFloat( p.getAttribute("data-pos-end")) ) {
+					p.classList.add("current");
+					p.scrollIntoView({
+						behavior: 'instant',
+						block: 'center',
+						inline: 'center'
+					})
+				} else {
+					p.classList.remove("current");
+				}
+				i++;
+			}
+		}
 	}
 
 }
