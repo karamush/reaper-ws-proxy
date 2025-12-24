@@ -181,6 +181,12 @@ function wwr_onreply(results) {
 			playstate_elm.style.background= colors[tok[1]];
 
 			var time = parseFloat( tok[2] );
+
+			const playState = parseInt(tok[1]);
+			if ([1, 5].includes(playState) && window.networkLatencyCompensation) {
+				time = time + window.networkLatencyCompensation;
+			}
+
 			var i = 0;
 			if( json.entry !== undefined ) {
 				for( let p of paragraphs ) {
