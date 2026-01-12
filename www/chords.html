@@ -9,7 +9,17 @@
 		:root {
 			--bg: #0f0f12;
 			--fg: #eaeaea;
-			--accent: #ea8400
+			--accent: #ea8400;
+
+			--scrollbar-color-thumb: #ea8400;
+			--scrollbar-color-track: #0f0f12;
+			--scrollbar-width: auto;
+			--scrollbar-width-legacy: 10px;
+		}
+
+		* {
+			scrollbar-color: var(--scrollbar-color-thumb) var(--scrollbar-color-track);
+			scrollbar-width: var(--scrollbar-width);
 		}
 
 		html,
@@ -124,11 +134,11 @@
 			display: flex;
 			flex-direction: column;
 			gap: 6px;
-			z-index: 220
+			z-index: 220;
 		}
 
 		.mobile-controls button {
-			width: 44px;
+			width: 69px;
 			height: 36px;
 			border-radius: 8px;
 			background: rgba(0, 0, 0, 0.45);
@@ -143,35 +153,21 @@
 
 			.right {
 				width: 100%;
-				height: 100vh
+				/*height: 100vh*/
 			}
 
 			.app {
 				padding: 6px
-			}
-
-			.mobile-controls {
-				display: flex
-			}
-		}
-
-		@media (min-width: 641px) {
-			.mobile-controls {
-				display: none
 			}
 		}
 	</style>
 </head>
 
 <body>
-	<div class="app">
+	<div class="app" id="app">
 		<div class="left">
 			<h2>Chords and hints web interface</h2>
 			<div class="controls">
-				<button id="btnRecenter">Recenter</button>
-				<button id="btnZoomIn">Zoom +</button>
-				<button id="btnZoomOut">Zoom -</button>
-				<div style="flex:1"></div>
 				<div class="hint">Wheel — zoom, drag — pan, pinch — zoom, flick — inertial pan</div>
 			</div>
 			<div id="actions_div">
@@ -188,9 +184,10 @@
 			<div class="canvas-wrap" id="canvasWrap">
 				<canvas id="timelineCanvas"></canvas>
 				<div class="mobile-controls" id="mobileControls">
-					<button id="mZoomIn">+</button>
-					<button id="mZoomOut">−</button>
-					<button id="mFit">Fit</button>
+					<button id="mZoomIn" class="actionZoomIn">+</button>
+					<button id="mZoomOut" class="actionZoomOut">−</button>
+					<button id="mRecenter" class="actionRecenter">Center</button>
+					<button id="mFullScreen" class="actionFullScreen">F11</button>
 				</div>
 			</div>
 			<div class="legend">
@@ -220,16 +217,12 @@
 
 		const baseTitle = 'REAPER Scrolling Chords — DrTux';
 		const canvas = document.getElementById('timelineCanvas');
-		const canvasWrap = document.getElementById('canvasWrap');
+		const app = document.getElementById('app');
 		const legendRegion = document.getElementById('legendRegion');
 		const legendCenter = document.getElementById('legendCenter');
 		const legendBPM = document.getElementById('legendBPM');
 		const actionsDiv = document.getElementById('actions_div');
 		const lyricsList = document.getElementById('lyricsList');
-		const mobileControls = document.getElementById('mobileControls');
-		const mZoomIn = document.getElementById('mZoomIn');
-		const mZoomOut = document.getElementById('mZoomOut');
-		const mFit = document.getElementById('mFit');
 
 		let dpr = Math.max(1, window.devicePixelRatio || 1);
 		const ctx = canvas.getContext('2d');
@@ -280,6 +273,14 @@
 		const itemPadding = 8;
 		const minItemHeight = 8;
 
+		function addClassClickListener(className, fn) {
+			const elements = document.getElementsByClassName(className);
+
+			for (let i = 0; i < elements.length; i++) {
+				elements[i].addEventListener('click', fn, false);
+			}
+		}
+
 		function saveScale() {
 			localStorage.setItem('tux_timeline_scale', scale.toString());
 		}
@@ -307,9 +308,6 @@
 				div.className = 'lyrics-item';
 				div.dataset.index = i;
 				div.innerHTML = `<strong>${formatTime(it.start)}</strong> — ${escapeHtml(it.text)} <span style="float:right;opacity:0.8">${it.dur.toFixed(2)}s</span>`;
-				div.addEventListener('click', () => {
-					manualOffset = ((it.start + it.end) / 2) - currentTime;
-				});
 				lyricsList.appendChild(div);
 			}
 		}
@@ -433,6 +431,8 @@
 			return curY;
 		}
 
+		let lastRegion, lastTime, lastBPM;
+
 		function draw() {
 			resizeCanvas();
 			const w = canvas.width / dpr;
@@ -527,8 +527,18 @@
 			ctx.beginPath();
 			ctx.arc(10, centerY, 6, 0, Math.PI * 2);
 			ctx.fill();
-			legendRegion.textContent = currentPlayTextStatus + ' ' + (currentRegion?.name ?? 'No region');
-			legendCenter.textContent = `Time: ${formatTime(currentTime)}`;
+
+			const currentFullRegion = currentPlayTextStatus + ' ' + (currentRegion?.name ?? 'No region');
+			if (!lastRegion || lastRegion !== currentFullRegion) {
+				legendRegion.textContent = currentFullRegion;
+				lastRegion = currentFullRegion;
+			}
+
+			const currentFullTime = `Time: ${formatTime(currentTime)}`;
+			if (!lastTime || lastTime !== currentFullTime) {
+				legendCenter.textContent = currentFullTime;
+				lastTime = currentFullTime;
+			}
 
 
 			if (newCurrentIndex !== currentIndex) {
@@ -546,7 +556,6 @@
 				currentIndex = newCurrentIndex;
 				const it = entries[currentIndex];
 				legendBPM.textContent = it?.bpm ?? '';
-
 
 				if (currentIndex !== -1) {
 					const el = lyricsList.children[currentIndex];
@@ -617,10 +626,8 @@
 			}
 			recentMoves = [];
 		});
-		canvas.addEventListener('dblclick', () => {
-			manualOffset = 0;
-			panVelocity = 0;
-		});
+
+		canvas.addEventListener('dblclick', recenter);
 
 		// touch: pan + pinch-to-zoom
 		let pinch = { active: false, startDist: 0, startScale: scale, centerTime: 0 };
@@ -690,32 +697,34 @@
 			return Math.sqrt(dx * dx + dy * dy);
 		}
 
-		// mobile control buttons
-		mZoomIn.addEventListener('click', () => {
+		function zoomIn() {
 			scale = Math.min(maxScale, scale * 1.15);
 			saveScale();
-		});
-		mZoomOut.addEventListener('click', () => {
+		}
+
+		function zoomOut() {
 			scale = Math.max(minScale, scale * 0.88);
 			saveScale();
-		});
-		mFit.addEventListener('click', () => {
-			fitTrackToView();
-		});
+		}
 
-		// buttons desktop
-		document.getElementById('btnZoomIn').addEventListener('click', () => {
-			scale = Math.min(maxScale, scale * 1.25);
-			saveScale();
-		});
-		document.getElementById('btnZoomOut').addEventListener('click', () => {
-			scale = Math.max(minScale, scale * 0.8);
-			saveScale();
-		});
-		document.getElementById('btnRecenter').addEventListener('click', () => {
+		function recenter() {
 			manualOffset = 0;
 			panVelocity = 0;
-		});
+			saveScale();
+		}
+
+		function enterFullScreen() {
+			if (document.fullscreenElement)
+				document.exitFullscreen();
+			else
+				app.requestFullscreen({navigationUI: 'show'});
+		}
+
+		addClassClickListener('actionRecenter', recenter);
+		addClassClickListener('actionFit', fitTrackToView);
+		addClassClickListener('actionZoomIn', zoomIn);
+		addClassClickListener('actionZoomOut', zoomOut);
+		addClassClickListener('actionFullScreen', enterFullScreen);
 
 		function parseExtState(tok) {
 			if (tok[1] === EXT_NAME && tok[2] === 'need_refresh' && (tok[3] === 'true' || window.first_run === true)) {
