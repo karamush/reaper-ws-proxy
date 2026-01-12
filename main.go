@@ -230,11 +230,7 @@ func createMDNSServer() (*zeroconf.Server, error) {
 }
 
 func getLocalIPAndPort() (string, string, error) {
-	ip, err := getLocalIP()
-	if err != nil {
-		log.Printf("Can't get local ip: " + err.Error())
-		return "", "", err
-	}
+	ip := getLocalIP()
 	_, port, _ := net.SplitHostPort(*listenAddr)
 
 	return ip, port, nil
@@ -272,14 +268,16 @@ func publishReaperRC() {
 	log.Printf("rc.reaper.fm response: %s", string(respBody))
 }
 
-func getLocalIP() (string, error) {
-	conn, err := net.Dial("udp", "1.1.1.1:80")
-	defer conn.Close()
+func getLocalIP() string {
+	conn, err := net.Dial("udp", "1.1.1.1:53")
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Can't get local ip address! CHECK YOUR INTERNET :)")
+		log.Println("Using localhost - 127.0.0.1")
+		return "127.0.0.1"
 	}
+	defer conn.Close()
 	localAddress := conn.LocalAddr().(*net.UDPAddr)
-	return localAddress.IP.String(), nil
+	return localAddress.IP.String()
 }
 
 // Проксирование HTTP-запросов к REAPER с контекстом и таймаутом
