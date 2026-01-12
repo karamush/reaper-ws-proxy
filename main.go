@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -125,7 +126,9 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	go publishReaperRC()
+	localIP, localPort, _ := getLocalIPAndPort()
+
+	go publishReaperRC(localIP, localPort)
 
 	server := &http.Server{
 		Addr:         *listenAddr,
@@ -138,6 +141,7 @@ func main() {
 	stopCh := make(chan struct{})
 
 	go pollAndBroadcast(m, stopCh)
+	go publishRcQofaRedirector(localIP, localPort, stopCh)
 
 	go func() {
 		log.Printf("Listening on %s", *listenAddr)
@@ -147,7 +151,7 @@ func main() {
 	}()
 
 	// mDNS
-	mDNSServer, err := createMDNSServer()
+	mDNSServer, err := createMDNSServer(localIP, localPort)
 	if err != nil {
 		log.Printf("mDNS server error: " + err.Error())
 	}
@@ -209,13 +213,12 @@ func getModTime(f *os.File) (modtime time.Time) {
 	return info.ModTime()
 }
 
-func createMDNSServer() (*zeroconf.Server, error) {
+func createMDNSServer(ip, port string) (*zeroconf.Server, error) {
 	if *mDNSService == "" {
 		log.Printf("No service name for mDNS, skipping!")
 		return nil, nil
 	}
 
-	ip, port, _ := getLocalIPAndPort()
 	portInt, _ := strconv.Atoi(port)
 
 	txtInfo := []string{"Reaper Lyrics and Chords via reaper-ws-proxy (" + version + ")"}
@@ -236,18 +239,11 @@ func getLocalIPAndPort() (string, string, error) {
 	return ip, port, nil
 }
 
-func publishReaperRC() {
+func publishReaperRC(ip, port string) {
 	if *reaperRCName == "" {
 		log.Printf("No reaper-rc-name, SKIP!")
 		return
 	}
-
-	ip, port, err := getLocalIPAndPort()
-	if err != nil {
-		log.Printf("ReaperRC: can't get local ip, SKIP!")
-		return
-	}
-	log.Printf("LOCAL IP: %s", ip)
 
 	client := &http.Client{}
 
@@ -345,6 +341,60 @@ func setLastState(b []byte) {
 	copy(lastState, b)
 }
 
+func hostnameSafe() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
+// Публикация адреса сервиса для r.qofa.ru для быстрого доступа без ввода IP (аналог rc.reaper.fm, но без ID)
+func publishRcQofaRedirector(ip, port string, stopCh <-chan struct{}) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	infoAlreadyPrinted := false
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			ticker = time.NewTicker(time.Minute)
+
+			client := &http.Client{}
+
+			URL := fmt.Sprintf("https://r.qofa.ru/register/%s:%s", ip, port)
+
+			//log.Printf("Requesting to: %s", URL)
+
+			req, _ := http.NewRequest("GET", URL, nil)
+			req.Header.Add("User-Agent", fmt.Sprintf("reaper-ws-proxy/%s - %s - %s (%s - %s/%s)", version, date, commit, hostnameSafe(), runtime.GOOS, runtime.GOARCH))
+			resp, err := client.Do(req)
+
+			if err != nil {
+				//log.Printf("r.qofa.ru error: %s", err.Error())
+				continue
+			}
+
+			respBody, _ := io.ReadAll(resp.Body)
+
+			if infoAlreadyPrinted {
+				continue
+			}
+
+			infoAlreadyPrinted = true
+			response := string(respBody)
+			_ = resp.Body.Close()
+			log.Printf("r.qofa.ru response: %s", response)
+			if strings.Contains(response, "registered") {
+				fmt.Printf("*** Успех! Можно зайти на r.qofa.ru вместо %s:%s, находясь в этой же локальной сети :) ***\n", ip, port)
+			}
+		}
+	}
+}
+
 func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 	if *pollKeys == "" {
 		log.Printf("Empty poll-get-keys parameter! Auto poll DISABLED!")
@@ -380,8 +430,8 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			cancelRequest = cancel
 
-			url := *reaperBaseURL + "/_/" + *pollKeys
-			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+			URL := *reaperBaseURL + "/_/" + *pollKeys
+			req, err := http.NewRequestWithContext(ctx, "GET", URL, nil)
 			if err != nil {
 				cancel()
 				log.Println("poll: new request error:", err)
@@ -393,7 +443,7 @@ func pollAndBroadcast(m *melody.Melody, stopCh <-chan struct{}) {
 				cancel()
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				} else {
-					log.Println("poll: request error:", err, "ctx.Err:", ctx.Err())
+					log.Println("REAPER poll request error:", err, "ctx.Err:", ctx.Err())
 					time.Sleep(time.Second)
 				}
 				continue
