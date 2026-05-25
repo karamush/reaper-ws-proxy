@@ -62,10 +62,17 @@ Usage: reaproxy [options]
 1. **Скачать архив** [последнего релиза](https://github.com/karamush/reaper-ws-proxy/releases/latest) для нужной операционной системы и архитектуры
 2. **Распаковать** *куда-нибудь* все файлы (желательно сохранить структуру, особенно важна папка `www`)
 3. **Добавить в REAPER lua-скрипт**, необходимый для подготовки аккордов и текстов:
+   
+   **Вручную:**
 - открыть Action-list
 - нажать `New Action -> Load ReaScript` и выбрать lua-файл из папки `REAPER-SCRIPTS/`
 [![Load ReaScript](./.github/readme_assets/reaper-load-script.webp)](./.github/readme_assets/reaper-load-script.webp)
-- скрипт добавлен! ✅ Пока что вручную, но позже будет через [ReaPack](https://reapack.com/) :)
+  **Через ReaPack**:
+  - `Extensions` -> `ReaPack` -> `Import repositories...`
+  - Вставить туда: `https://github.com/karamush/REAPER-ReaScripts/raw/main/index.xml`
+  - Теперь можно обновить список пакетов, и нужный скрипт будет доступен для поиска и установки (можно найти по названию `prepare Chords`...), а также сам будет обновляться по мере выхода обновлений :)
+
+- скрипт добавлен! ✅
 - теперь на этот скрипт можно назначить горячую клавишу или создать кастомную кнопочку на одной из панелей для быстрого вызова.
 
 <details>
